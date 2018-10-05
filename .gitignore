@@ -93,3 +93,6 @@ ENV/
 # Data Files
 *.xlsx
 *.csv
+
+#config
+config.py

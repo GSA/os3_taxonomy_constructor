@@ -1,13 +1,22 @@
-import pandas as pd
+import sys
+sys.path.append("H:/")
+
+import re, requests, pandas as pd
+from pandas.io.json import json_normalize
+
+from os3_taxonomy_constructor.config import wall_mart_api_key as key
+
+
+'''
 import nltk
 from nltk.corpus import wordnet as wn
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
-import re
+
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.base import BaseEstimator, TransformerMixin
-import requests
+
 from bs4 import BeautifulSoup
 from time import sleep
 import gensim
@@ -15,10 +24,39 @@ from collections import defaultdict
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import classification_report
-import enchant
+'''
 
 
-def get_taxonomy(key):
+
+use_cols = ['AWARD_VEHICLE',
+            'CONTRACT_NUMBER_AWARD_PIID', 'ORDER_NUMBER','VENDOR_NAME',
+            'FUNDING_AGENCY', 'ORDER_DATE', 'QUANTITY_OF_ITEM_SOLD',
+            'AWARD_PRICE_PER_UNIT', 'UNIT_OF_MEASURE',
+            'UNIT_OF_MEASURE_BY_VENDOR', 'TOTAL_PRICE',
+            'DESCRIPTION_OF_DELIVERABLES', 'PROD_DESC_BY_VENDOR',
+            'MANUFACTURE_NAME', 'MANUFACTURE_PART_NUMBER', 'MFR_NAME_BY_VENDOR',
+            'MFR_PART_NO_BY_VENDOR']
+
+dtypes = {'AWARD_VEHICLE': 'object',
+          'CONTRACT_NUMBER_AWARD_PIID': 'object',
+          'ORDER_NUMBER': 'object',
+          'VENDOR_NAME': 'object',
+          'FUNDING_AGENCY': 'object',
+          'QUANTITY_OF_ITEM_SOLD': 'int',
+          'AWARD_PRICE_PER_UNIT': 'float64',
+          'UNIT_OF_MEASURE': 'object',
+          'UNIT_OF_MEASURE_BY_VENDOR': 'object',
+          'TOTAL_PRICE': 'float64',
+          'DESCRIPTION_OF_DELIVERABLES': 'object',
+          'PROD_DESC_BY_VENDOR': 'object',
+          'MANUFACTURE_NAME': 'object',
+          'MANUFACTURE_PART_NUMBER': 'object',
+          'MFR_NAME_BY_VENDOR': 'object',
+          'MFR_PART_NO_BY_VENDOR': 'object'}
+
+
+
+def get_taxonomy(key=key):
     '''
     Gets the category taxonomy used by walmart.com to categorize items.
 
@@ -28,7 +66,6 @@ def get_taxonomy(key):
     Returns:
         r_json (dict): a dict representing the json repsonse
     '''
-
     url = f"http://api.walmartlabs.com/v1/taxonomy?apiKey={key}"
     r = requests.get(url)
     r_json = r.json()
@@ -113,10 +150,13 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
         '''
         Strip misspelled substrings from a string.
         '''
+        stripped_text = text
+        '''
         d = enchant.Dict("en_US")
         tokens = word_tokenize(text)
         non_dict_words = set([word for word in tokens if d.check(word) is False and re.match('^[a-zA-Z ]*$',word)])
         stripped_text = " ".join([x for x in tokens if x not in non_dict_words])
+        '''
         return stripped_text
 
     r_json = search_walmart(key, vendor_description_clean, category_id = category_id)
@@ -170,59 +210,89 @@ def strip_nonsense(text):
     return stripped_text
 
 
+def removePreviousPredictions(train_df):
+    '''
+    remove predictions made from previous uses of the api
+    '''
+    previousPredictions = pd.read_csv('data/walmart_query_predictions.csv',encoding='latin1')
+    prod_desc = list(previousPredictions['PROD_DESC_BY_VENDOR'])
+    df = train_df[~train_df['PROD_DESC_BY_VENDOR'].isin(prod_desc)]
+    return df
 
-if __name__ == '__main__':
-    # insert your api key here
-    key = ''
-    use_cols = ['AWARD_VEHICLE',
-                'CONTRACT_NUMBER_AWARD_PIID', 'ORDER_NUMBER','VENDOR_NAME',
-                'FUNDING_AGENCY', 'ORDER_DATE', 'QUANTITY_OF_ITEM_SOLD',
-                'AWARD_PRICE_PER_UNIT', 'UNIT_OF_MEASURE',
-                'UNIT_OF_MEASURE_BY_VENDOR', 'TOTAL_PRICE',
-                'DESCRIPTION_OF_DELIVERABLES', 'PROD_DESC_BY_VENDOR',
-                'MANUFACTURE_NAME', 'MANUFACTURE_PART_NUMBER', 'MFR_NAME_BY_VENDOR',
-                'MFR_PART_NO_BY_VENDOR']
-    dtypes = {'AWARD_VEHICLE': 'object',
-              'CONTRACT_NUMBER_AWARD_PIID': 'object',
-              'ORDER_NUMBER': 'object',
-              'VENDOR_NAME': 'object',
-              'FUNDING_AGENCY': 'object',
-              'QUANTITY_OF_ITEM_SOLD': 'int',
-              'AWARD_PRICE_PER_UNIT': 'float64',
-              'UNIT_OF_MEASURE': 'object',
-              'UNIT_OF_MEASURE_BY_VENDOR': 'object',
-              'TOTAL_PRICE': 'float64',
-              'DESCRIPTION_OF_DELIVERABLES': 'object',
-              'PROD_DESC_BY_VENDOR': 'object',
-              'MANUFACTURE_NAME': 'object',
-              'MANUFACTURE_PART_NUMBER': 'object',
-              'MFR_NAME_BY_VENDOR': 'object',
-              'MFR_PART_NO_BY_VENDOR': 'object'}
-    # read in the training data and take a random sample of it that respects
-    # the sub_category balance.
-    train_df = pd.read_csv('os3_train.csv',
+
+
+def getTraining(sampleNum=5):
+    '''read in the training data and take a random sample of it that respects
+    the sub_category balance.
+    '''
+    train_df = pd.read_csv('data/os3_train.csv',
                            dtype=dtypes,
                            thousands=',',
                            parse_dates=[7],
                            encoding='latin1')
+    train_df = removePreviousPredictions(train_df)
     lables, uniques = pd.factorize(train_df['SUB_CATEGORY'])
     train_df['target'] = lables
-    factor_map = {k:v for k,v in zip(uniques,range(len(uniques)))}
-    train_df = train_df.sample(n=1000, weights='target')
+    #factor_map = {k:v for k,v in zip(uniques,range(len(uniques)))}
+    train_df = train_df.sample(n=sampleNum, weights='target')
     train_df['vendor_description_clean'] = train_df['PROD_DESC_BY_VENDOR'].apply(strip_nonsense)
+    return train_df
 
-    # Query Walmart Search API using cleaned up vendor descriptions
+
+ 
+def queryAPI(train_df):
+    '''
+    Query Walmart Search API using cleaned up vendor descriptions
+    '''
     vendor_descriptions = set(train_df['vendor_description_clean'])
     description_category_map = {k:None for k in vendor_descriptions}
     for i, query in enumerate(vendor_descriptions):
         description_category_map[query] = predict_sub_category(query,key)
         if i % 50 == 0:
             print(f'Done with {i} of {len(vendor_descriptions)}!')
+    return description_category_map
 
+
+def getTaxonomyDF(category='office'):
+    '''
+    will build this out better
+    gets walmarts taxonomy into a df structure
+    '''
+    taxonomy = get_taxonomy()
+    if category == 'office':
+        num = 19
+    else:
+        num = 31
+    df = pd.DataFrame()
+    for i in range(len(taxonomy['categories'][num]['children'])):
+        name = taxonomy['categories'][num]['children'][i]['name']
+        try:
+            df2 = json_normalize(taxonomy['categories'][num]['children'][i]['children'])
+            df2['sub_category']=name 
+        except:
+            df2 = json_normalize(taxonomy['categories'][num]['children'][i])
+        df = df.append(df2)
+    del df['id']
+    del df['path']
+    df['category'] =category
+    return df   
+
+
+if __name__ == '__main__':
+    train_df = getTraining(sampleNum=5)  
+    description_category_map = queryAPI(train_df)
+    
+    
     train_df['prediction'] = train_df['vendor_description_clean'].map(description_category_map)
     train_df['prediction_truncated'] = train_df['prediction'].str.split("/").apply(lambda x: x[-1])
-    train_df[['PROD_DESC_BY_VENDOR',
+    train_df = train_df[['PROD_DESC_BY_VENDOR',
               'vendor_description_clean',
               'SUB_CATEGORY',
               'prediction',
-              'prediction_truncated']].to_csv(r'walmart_query_predictions.csv',index=False)
+              'prediction_truncated']]
+    try:    
+        previousPredictions = pd.read_csv('data/walmart_query_predictions.csv',encoding='latin1')
+    except:
+        print('please add predictions to /data/')
+    train_df =train_df.append(previousPredictions)
+    train_df.to_csv(r'data/walmart_query_predictions.csv',index=False)
