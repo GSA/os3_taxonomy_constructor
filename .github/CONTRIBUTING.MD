@@ -15,7 +15,7 @@ When you want to work on something, clone the repository and make a new branch f
 ### Long Version
 #### Writing your Code
 1. `clone` the repository:
-`$ git clone https://github.com/GSA/MD-GitHub-Admin.git`
+`$ git clone https://github.com/GSA/os3_taxonomy_constructor.git`
 2. `checkout` a branch for your feature before doing anything:
 `$ git checkout -b shiny-new-feature`
 3. Do some work, staging files you've edited for commit like this:
@@ -30,7 +30,7 @@ When you want to work on something, clone the repository and make a new branch f
  7. You should now be able to see your branch on the origin repositor. To make the Pull Request, click on your branch name. Then, click the "Pull Request" button, either on the top right of the screen, or in the center of the page under the label "Your recently pushed branches:". Click the Send Pull request button. Await someone's code review.
 
  #### Reviewing your Code
- You can review pull requests at https://github.com/GSA/MD-GitHub-Admin/pulls. If you like the code, you can merge it into master by pressing the big green Merge button. And then you're done!
+ You can review pull requests at https://github.com/GSA/os3_taxonomy_constructor/pulls. If you like the code, you can merge it into master by pressing the big green Merge button. And then you're done!
 
  If there's a gray bar saying "This pull request cannot be automatically merged.", then you've got some more work ahead of you. That's because the file(s) that your pull request modifies was/were updated in the meantime. To avoid a conflict on the remote, GitHub won't let you automatically merge into master. This means you need to update your Pull Request by merging the origin's master branch into your feature branch. In short, you need to “merge upstream master” in your branch:
 ```
@@ -60,16 +60,16 @@ Make sure you use a lower-case -d, or else git won’t warn you if your feature 
 ## The Fork and Pull Model
 This model is the same as the Shared Repository Model except that you need your own fork to work on the code. To to this, you go to the project page and hit the Fork button. You will then want to clone your fork to your machine:
 
-```git https://github.com/GSA/MD-GitHub-Admin.git MD-GitHub-Admin-yourname
-cd MD-GitHub-Admin-yourname
-git remote add upstream https://github.com/GSA/MD-GitHub-Admin.git
+```git https://github.com/GSA/os3_taxonomy_constructor.git os3_taxonomy_constructor-yourname
+cd os3_taxonomy_constructor-yourname
+git remote add upstream https://github.com/GSA/os3_taxonomy_constructor.git
 ```
-This creates the directory MD-GitHub-Admin-yourname and connects your repository to the upstream (main project) repository. Once you've done this, make your branch, write some code, add and commit your changes, push your forked feature branch’s commits, make your pull request, and await review.
+This creates the directory `os3_taxonomy_constructor-yourname` and connects your repository to the upstream (main project) repository. Once you've done this, make your branch, write some code, add and commit your changes, push your forked feature branch’s commits, make your pull request, and await review.
 
 ## Any contributions you make will be under the Creative Commons Zero v1.0 Universal
 In short, when you submit code changes, your submissions are understood to be under the same Creative Commons License that covers the project.
 
-## Report bugs using Github's [issues](https://github.com/GSA/data-strategy-topic-modeling/issues)
+## Report bugs using Github's [issues](https://github.com/GSA/os3_taxonomy_constructor/issues)
 We use GitHub issues to track public bugs. Report a bug by [opening a new issue](); it's that easy!
 
 ## Write bug reports with detail, background, and sample code
