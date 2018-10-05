@@ -32,11 +32,11 @@ When you want to work on something, clone the repository and make a new branch f
  #### Reviewing your Code
  You can review pull requests at https://github.com/GSA/os3_taxonomy_constructor/pulls. If you like the code, you can merge it into master by pressing the big green Merge button. And then you're done!
 
- If there's a gray bar saying "This pull request cannot be automatically merged.", then you've got some more work ahead of you. That's because the file(s) that your pull request modifies was/were updated in the meantime. To avoid a conflict on the remote, GitHub won't let you automatically merge into master. This means you need to update your Pull Request by merging the origin's master branch into your feature branch. In short, you need to “merge upstream master” in your branch:
+ If there's a gray bar saying "This pull request cannot be automatically merged.", then you've got some more work ahead of you. That's because the file(s) that your pull request modifies was/were updated in the meantime. To avoid a conflict on the remote, GitHub won't let you automatically merge into master. This means you need to update your Pull Request by merging the origin's master branch into your feature branch. In short, you need to “merge origin master” in your branch:
 ```
 git checkout shiny-new-feature
-git fetch upstream
-git merge upstream/master
+git fetch origin
+git merge origin/master
 ```
 If there are no conflicts (or they could be fixed automatically), a file with a default commit message will open, and you can simply save and quit this file.
 
@@ -58,7 +58,7 @@ Now that your local master is even with the remote, you can do:
 Make sure you use a lower-case -d, or else git won’t warn you if your feature branch has not actually been merged.
 
 ## The Fork and Pull Model
-This model is the same as the Shared Repository Model except that you need your own fork to work on the code. To to this, you go to the project page and hit the Fork button. You will then want to clone your fork to your machine:
+This model is the same as the Shared Repository Model except that you need your own fork to work on the code. To to this, you go to the project page and hit the Fork button. You will then want to clone your fork to your machine and add an "upstream remote":
 
 ```git https://github.com/GSA/os3_taxonomy_constructor.git os3_taxonomy_constructor-yourname
 cd os3_taxonomy_constructor-yourname
