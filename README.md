@@ -6,8 +6,8 @@ The Acquisition Analytics Team within GSA's Federal Acquisition Service (FAS) is
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
 
-1: add a py file called config.py
-2: get a walmart api key and add it config.py
+1. add a py file called config.py
+2. get a walmart api key and add it config.py
 
 
 ### Prerequisites
