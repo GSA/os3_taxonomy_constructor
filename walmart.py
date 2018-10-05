@@ -18,22 +18,21 @@ from sklearn.metrics import classification_report
 import enchant
 
 
-
-def strip_nonsense(text):
+def get_taxonomy(key):
     '''
-    lowercase a string, strip digits and substrings with digits in them.
+    Gets the category taxonomy used by walmart.com to categorize items.
 
     Parameters:
-        text (str)
-    Returns:
-        stripped_text (str)
+        key (str): your api key
 
+    Returns:
+        r_json (dict): a dict representing the json repsonse
     '''
-    text_lowered = text.lower()
-    nums_replaced = re.sub("\d+", " ", text_lowered)
-    no_nonsense = re.findall(r'\b[a-z][a-z][a-z]+\b',nums_replaced)
-    stripped_text = ' '.join(w for w in no_nonsense).strip()
-    return stripped_text
+
+    url = f"http://api.walmartlabs.com/v1/taxonomy?apiKey={key}"
+    r = requests.get(url)
+    r_json = r.json()
+    return r_json
 
 
 def search_walmart(key, query, category_id=None, facet=False, brand=None, price_range=None):
@@ -53,7 +52,6 @@ def search_walmart(key, query, category_id=None, facet=False, brand=None, price_
 
     Returns:
         r_json (dict): a dict representing the json response of the request.
-
     '''
 
     url = f'http://api.walmartlabs.com/v1/search?apiKey={key}&query={query}'
@@ -154,6 +152,24 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
             prediction = 'NULL'
 
         return prediction
+
+def strip_nonsense(text):
+    '''
+    lowercase a string, strip digits and substrings with digits in them.
+
+    Parameters:
+        text (str)
+    Returns:
+        stripped_text (str)
+    '''
+
+    text_lowered = text.lower()
+    nums_replaced = re.sub("\d+", " ", text_lowered)
+    no_nonsense = re.findall(r'\b[a-z][a-z][a-z]+\b',nums_replaced)
+    stripped_text = ' '.join(w for w in no_nonsense).strip()
+    return stripped_text
+
+
 
 if __name__ == '__main__':
     # insert your api key here
