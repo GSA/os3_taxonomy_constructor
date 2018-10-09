@@ -172,7 +172,7 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
             for i in dict_elements:
                 for j in i:
                     if 'categoryPath' in str(j):
-                        if i[-1].startswith(('Office','Walmart for Business')):
+                        if i[-1].startswith(('Office','Walmart for Business','Electronics')):
                             category_paths.append(i[-1])
             try:
                 prediction = max(category_paths)
