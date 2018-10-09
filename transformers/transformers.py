@@ -21,7 +21,7 @@ class ProdDescCleaner(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _sub_parts_measures(m):
-        return '' if m.group() in parts_measures else m.group()
+        return '' if m.group() in parts_and_measures else m.group()
 
 
     def fit(self, X, y=None):
@@ -54,6 +54,7 @@ class ProdDescCleaner(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         return self.X
+
 
 if __name__=='__main__':
     df = pd.read_csv(os3_train.csv)

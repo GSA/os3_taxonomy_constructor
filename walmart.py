@@ -2,16 +2,19 @@ import sys
 sys.path.append("H:/")
 
 import re, requests, pandas as pd
-from pandas.io.json import json_normalize
 
+from nltk.corpus import words
 from os3_taxonomy_constructor.config import wall_mart_api_key as key
+from os3_taxonomy_constructor.transformers.transformers import ProdDescCleaner
+from nltk.tokenize import word_tokenize
+
 
 
 '''
 import nltk
 from nltk.corpus import wordnet as wn
 from nltk.stem.wordnet import WordNetLemmatizer
-from nltk.tokenize import word_tokenize
+
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -150,13 +153,12 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
         '''
         Strip misspelled substrings from a string.
         '''
-        stripped_text = text
-        '''
-        d = enchant.Dict("en_US")
         tokens = word_tokenize(text)
-        non_dict_words = set([word for word in tokens if d.check(word) is False and re.match('^[a-zA-Z ]*$',word)])
+        
+        
+        non_dict_words = set([word for word in tokens if word not in words.words() and re.match('^[a-zA-Z ]*$',word)])
         stripped_text = " ".join([x for x in tokens if x not in non_dict_words])
-        '''
+        
         return stripped_text
 
     r_json = search_walmart(key, vendor_description_clean, category_id = category_id)
@@ -170,7 +172,8 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
             for i in dict_elements:
                 for j in i:
                     if 'categoryPath' in str(j):
-                        category_paths.append(i[-1])
+                        if i[-1].startswith(('Office','Walmart for Business')):
+                            category_paths.append(i[-1])
             try:
                 prediction = max(category_paths)
             except ValueError:
@@ -185,7 +188,8 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
         for i in dict_elements:
             for j in i:
                 if 'categoryPath' in str(j):
-                    category_paths.append(i[-1])
+                    if i[-1].startswith(('Office','Walmart for Business')):
+                            category_paths.append(i[-1])
         try:
             prediction = max(category_paths)
         except ValueError:
@@ -245,6 +249,13 @@ def queryAPI(train_df):
     Query Walmart Search API using cleaned up vendor descriptions
     '''
     vendor_descriptions = set(train_df['vendor_description_clean'])
+    '''
+    #############################
+    # this does not work parts_and_measures need to be defined in transformers.py
+    #############################
+    a =ProdDescCleaner().fit(train_df)
+    cleaned_descriptions = a.transform()
+    '''
     description_category_map = {k:None for k in vendor_descriptions}
     for i, query in enumerate(vendor_descriptions):
         description_category_map[query] = predict_sub_category(query,key)
@@ -254,6 +265,7 @@ def queryAPI(train_df):
 
 
 def getTaxonomyDF(category='office'):
+    from pandas.io.json import json_normalize
     '''
     will build this out better
     gets walmarts taxonomy into a df structure
