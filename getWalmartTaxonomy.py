@@ -11,7 +11,7 @@ from os3_taxonomy_constructor import walmart
 office = walmart.getTaxonomyDF()
 business =walmart.getTaxonomyDF(category='wallmart for business')    
 walMartTaxonomy = office.append(business)
-walMartTaxonomy.to_csv('data/wallMartTaxonomy.csv')
+walMartTaxonomy.to_csv('data/wallmart_taxonomy.csv')
 
 
 

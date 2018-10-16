@@ -1,13 +1,17 @@
-import sys
-sys.path.append("H:/")
+import sys, os
+if os.name=='nt':
+    try:
+        sys.path.append("H:/")
+    except:
+        print('cannont append path')
 
 import re, requests, pandas as pd
 
 from nltk.corpus import words
 from os3_taxonomy_constructor.config import wall_mart_api_key as key
-from os3_taxonomy_constructor.transformers.transformers import ProdDescCleaner
+from transformers.transformers import ProdDescCleaner
 from nltk.tokenize import word_tokenize
-
+from os3_taxonomy_constructor import rules
 
 
 '''
@@ -59,7 +63,7 @@ dtypes = {'AWARD_VEHICLE': 'object',
 
 
 
-def get_taxonomy(key=key):
+def get_taxonomy(key=key,name=""):
     '''
     Gets the category taxonomy used by walmart.com to categorize items.
 
@@ -172,7 +176,7 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
             for i in dict_elements:
                 for j in i:
                     if 'categoryPath' in str(j):
-                        if i[-1].startswith(('Office','Walmart for Business','Electronics')):
+                        if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
                             category_paths.append(i[-1])
             try:
                 prediction = max(category_paths)
@@ -188,7 +192,7 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
         for i in dict_elements:
             for j in i:
                 if 'categoryPath' in str(j):
-                    if i[-1].startswith(('Office','Walmart for Business')):
+                    if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
                             category_paths.append(i[-1])
         try:
             prediction = max(category_paths)
@@ -234,7 +238,10 @@ def getTraining(sampleNum=5):
                            thousands=',',
                            parse_dates=[7],
                            encoding='latin1')
-    train_df = removePreviousPredictions(train_df)
+    try:
+        train_df = removePreviousPredictions(train_df)
+    except:
+        print("add previous predictions to your data/ folder, to not resample data")
     lables, uniques = pd.factorize(train_df['SUB_CATEGORY'])
     train_df['target'] = lables
     #factor_map = {k:v for k,v in zip(uniques,range(len(uniques)))}
@@ -249,14 +256,8 @@ def queryAPI(train_df):
     Query Walmart Search API using cleaned up vendor descriptions
     '''
     vendor_descriptions = set(train_df['vendor_description_clean'])
-    '''
-    #############################
-    # this does not work parts_and_measures need to be defined in transformers.py
-    #############################
-    a =ProdDescCleaner().fit(train_df)
-    cleaned_descriptions = a.transform()
-    '''
-    description_category_map = {k:None for k in vendor_descriptions}
+    cleaned_descriptions =ProdDescCleaner().execute(train_df)
+    description_category_map = {k:None for k in cleaned_descriptions}
     for i, query in enumerate(vendor_descriptions):
         description_category_map[query] = predict_sub_category(query,key)
         if i % 50 == 0:
@@ -289,12 +290,19 @@ def getTaxonomyDF(category='office'):
     df['category'] =category
     return df   
 
+def compareToLabeled(taxonomy,predictions):
+    taxonomy = taxonomy.drop_duplicates(subset=['name'])
+    merged = pd.merge(predictions,taxonomy,how='left',left_on='prediction_truncated',right_on='name')
+    merged['ifTrue'] = merged.apply(lambda x : 1 if x['SUB_CATEGORY'] == x['os3_taxonomy'] else 0, axis=1)
+    df = pd.DataFrame(merged.groupby(['ifTrue'])['ifTrue'].count())
+    print(df['ifTrue'].iloc[1] / (df['ifTrue'].iloc[1] + df['ifTrue'].iloc[0])," percent similar to labeled data")
+    return merged
+
+
 
 if __name__ == '__main__':
-    train_df = getTraining(sampleNum=5)  
+    train_df = getTraining(sampleNum=200)  
     description_category_map = queryAPI(train_df)
-    
-    
     train_df['prediction'] = train_df['vendor_description_clean'].map(description_category_map)
     train_df['prediction_truncated'] = train_df['prediction'].str.split("/").apply(lambda x: x[-1])
     train_df = train_df[['PROD_DESC_BY_VENDOR',
@@ -302,9 +310,16 @@ if __name__ == '__main__':
               'SUB_CATEGORY',
               'prediction',
               'prediction_truncated']]
+    train_df = rules.applyRulesToDF(train_df)
+    try:
+        taxonomy =  pd.read_csv('data/walmart_taxonomy.csv')
+        train_df = compareToLabeled(taxonomy,train_df)
+    except:
+        print('please add taxonomy data to data folder to compare results')
     try:    
         previousPredictions = pd.read_csv('data/walmart_query_predictions.csv',encoding='latin1')
+        train_df =train_df.append(previousPredictions)
     except:
-        print('please add predictions to /data/')
-    train_df =train_df.append(previousPredictions)
+        print('please add predictions to /data/') 
     train_df.to_csv(r'data/walmart_query_predictions.csv',index=False)
+

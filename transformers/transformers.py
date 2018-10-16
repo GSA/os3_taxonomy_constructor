@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.base import BaseEstimator, TransformerMixin
 
 
+
 class ProdDescCleaner(BaseEstimator, TransformerMixin):
     '''
     Pipeline transformer for the PROD_DESC_BY_VENDOR feature.
@@ -19,15 +20,14 @@ class ProdDescCleaner(BaseEstimator, TransformerMixin):
                                      'UNIT_OF_MEASURE_BY_VENDOR']):
         self.col_names_to_strip = col_names_to_strip
 
-    @staticmethod
-    def _sub_parts_measures(m):
-        return '' if m.group() in parts_and_measures else m.group()
-
 
     def fit(self, X, y=None):
         '''
         X is expected to be a pandas dataframe.
         '''
+        def _sub_parts_measures(m):
+            return '' if m.group() in parts_and_measures else m.group()
+
         prod_desc = X['PROD_DESC_BY_VENDOR'].str.lower()
         parts_and_measures = set()
         for i in self.col_names_to_strip:
@@ -36,7 +36,7 @@ class ProdDescCleaner(BaseEstimator, TransformerMixin):
                 parts_and_measures.add(j)
         # strip measurement and manufacturer part numbers
         prod_desc = prod_desc.apply(lambda x: re.sub(r'\w+',
-                                                     ProdDescCleaner._sub_parts_measures,
+                                                     _sub_parts_measures,
                                                      x))
         #replace commas, dashes and underscores with a space
         punct_to_space_re = re.compile('|'.join([',', '_', '-']))
@@ -55,9 +55,16 @@ class ProdDescCleaner(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         return self.X
 
-
+    
+    def execute(self,df):
+        #df = pd.read_csv('H:/os3_taxonomy_constructor/data/os3_train.csv')
+        #df = df.sample(n=20)
+        self.fit(df)
+        X = self.transform(df)
+        return X
+    
 if __name__=='__main__':
-    df = pd.read_csv(os3_train.csv)
+    df = pd.read_csv('H:/os3_taxonomy_constructor/data/os3_train.csv')
     df = df.sample(n=20)
     pdc = ProdDescCleaner()
     pdc.fit(df)
