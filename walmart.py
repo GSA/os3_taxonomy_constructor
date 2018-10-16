@@ -8,30 +8,12 @@ if os.name=='nt':
 import re, requests, pandas as pd
 
 from nltk.corpus import words
-from os3_taxonomy_constructor.config import wall_mart_api_key as key
+from config import wall_mart_api_key as key
 from transformers.transformers import ProdDescCleaner
 from nltk.tokenize import word_tokenize
 from os3_taxonomy_constructor import rules
+from statistics import mode
 
-
-'''
-import nltk
-from nltk.corpus import wordnet as wn
-from nltk.stem.wordnet import WordNetLemmatizer
-
-
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.base import BaseEstimator, TransformerMixin
-
-from bs4 import BeautifulSoup
-from time import sleep
-import gensim
-from collections import defaultdict
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import classification_report
-'''
 
 
 
@@ -79,7 +61,7 @@ def get_taxonomy(key=key,name=""):
     return r_json
 
 
-def search_walmart(key, query, category_id=None, facet=False, brand=None, price_range=None):
+def search_walmart(key, query, category_id=None, facet=False, brand=None, price_range=None,num_items='10'):
     '''
     Query the Walmart Search API, returning results in json.
 
@@ -98,7 +80,7 @@ def search_walmart(key, query, category_id=None, facet=False, brand=None, price_
         r_json (dict): a dict representing the json response of the request.
     '''
 
-    url = f'http://api.walmartlabs.com/v1/search?apiKey={key}&query={query}'
+    url = f'http://api.walmartlabs.com/v1/search?apiKey={key}&query={query}&numItems={num_items}'
     if category_id:
         url = url + f'&categoryId={category_id}'
     if facet:
@@ -112,11 +94,12 @@ def search_walmart(key, query, category_id=None, facet=False, brand=None, price_
         low = price_range[0]
         high = price_range[1]
         url = url + f'&facet.range=price:[{low} TO {high}]'
-
     r = requests.get(url)
     r_json = r.json()
     return r_json
 
+
+                            
 
 def predict_sub_category(vendor_description_clean, key, category_id = '1229749'):
     '''
@@ -133,8 +116,61 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
 
     Returns:
         prediction (str): the most common product taxonomy of the search results.
+    '''  
+
+    r_json = search_walmart(key,vendor_description_clean , category_id = category_id)
+    category_paths = []
+    # this means results weren't found
+    if 'message' in r_json:
+        new_query = strip_misspellings(vendor_description_clean)
+        if len(new_query) > 0:
+            r_json = search_walmart(key, new_query, category_id = category_id)
+            category_paths = loop_through_data_elements_and_append_categories(r_json)   
+    else:
+        category_paths = loop_through_data_elements_and_append_categories(r_json)
+    prediction = _get_prediction_from_category_path(category_paths)
+    return prediction
+
+def loop_through_data_elements_and_append_categories(r_json):
+    category_paths = []
+    dict_elements = dict_generator(r_json)
+    for i in dict_elements:
+        for j in i:
+            if 'categoryPath' in str(j):
+                if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
+                        category_paths.append(i[-1])
+    return category_paths
+
+def strip_nonsense(text):
     '''
-    def dict_generator(indict, pre=None):
+    lowercase a string, strip digits and substrings with digits in them.
+
+    Parameters:
+        text (str)
+    Returns:
+        stripped_text (str)
+    '''
+
+    text_lowered = text.lower()
+    nums_replaced = re.sub("\d+", " ", text_lowered)
+    no_nonsense = re.findall(r'\b[a-z][a-z][a-z]+\b',nums_replaced)
+    stripped_text = ' '.join(w for w in no_nonsense).strip()
+    return stripped_text
+
+
+def strip_misspellings(text):
+        '''
+        Strip misspelled substrings from a string.
+        '''
+        tokens = word_tokenize(text)
+        
+        
+        non_dict_words = set([word for word in tokens if word not in words.words() and re.match('^[a-zA-Z ]*$',word)])
+        stripped_text = " ".join([x for x in tokens if x not in non_dict_words])
+        
+        return stripped_text
+
+def dict_generator(indict, pre=None):
         '''
         Flatten irregularly nested dictionaries into lists for easier looping.
         '''
@@ -153,70 +189,18 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
         else:
             yield indict
 
-    def strip_misspellings(text):
-        '''
-        Strip misspelled substrings from a string.
-        '''
-        tokens = word_tokenize(text)
-        
-        
-        non_dict_words = set([word for word in tokens if word not in words.words() and re.match('^[a-zA-Z ]*$',word)])
-        stripped_text = " ".join([x for x in tokens if x not in non_dict_words])
-        
-        return stripped_text
-
-    r_json = search_walmart(key, vendor_description_clean, category_id = category_id)
-    # this means results weren't found
-    if 'message' in r_json:
-        new_query = strip_misspellings(vendor_description_clean)
-        if len(new_query) > 0:
-            r_json = search_walmart(key, new_query, category_id = category_id)
-            dict_elements = dict_generator(r_json)
-            category_paths = []
-            for i in dict_elements:
-                for j in i:
-                    if 'categoryPath' in str(j):
-                        if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
-                            category_paths.append(i[-1])
+def _get_prediction_from_category_path(category_paths):
+    prediction = 'NULL'
+    try:
+        while category_paths:
             try:
-                prediction = max(category_paths)
-            except ValueError:
-                prediction = 'NULL'
-
-            return prediction
-        else:
-            return 'NULL'
-    else:
-        dict_elements = dict_generator(r_json)
-        category_paths = []
-        for i in dict_elements:
-            for j in i:
-                if 'categoryPath' in str(j):
-                    if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
-                            category_paths.append(i[-1])
-        try:
-            prediction = max(category_paths)
-        except ValueError:
-            prediction = 'NULL'
-
-        return prediction
-
-def strip_nonsense(text):
-    '''
-    lowercase a string, strip digits and substrings with digits in them.
-
-    Parameters:
-        text (str)
-    Returns:
-        stripped_text (str)
-    '''
-
-    text_lowered = text.lower()
-    nums_replaced = re.sub("\d+", " ", text_lowered)
-    no_nonsense = re.findall(r'\b[a-z][a-z][a-z]+\b',nums_replaced)
-    stripped_text = ' '.join(w for w in no_nonsense).strip()
-    return stripped_text
-
+                prediction = mode(category_paths)  
+                break
+            except:
+                del category_paths[-1]
+    except:
+          print("no prediction generated")
+    return prediction
 
 def removePreviousPredictions(train_df):
     '''
@@ -322,4 +306,5 @@ if __name__ == '__main__':
     except:
         print('please add predictions to /data/') 
     train_df.to_csv(r'data/walmart_query_predictions.csv',index=False)
+
 

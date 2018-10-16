@@ -17,7 +17,8 @@ ruleUpdates = {
 'rule8':{'Clips, Clamps and Rings' :['Binder' ,'Clips']},
 'rule9':{'Labels' :['label' ,'ship']},
 'rule10':{'Ink and Toner' : ['toner', 'oem']},
-'rule11':{'Ink and Toner' : ['print', 'cartridge']}
+'rule11':{'Ink and Toner' : ['print', 'cartridge']},
+'rule12':{'Ink and Toner' : ['print', 'oem']}
 }
 
 def _at_least_n_strings_in_longstring(longstring,strings,n=2): 
