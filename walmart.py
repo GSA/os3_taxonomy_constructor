@@ -13,8 +13,10 @@ from transformers.transformers import ProdDescCleaner
 from nltk.tokenize import word_tokenize
 from os3_taxonomy_constructor import rules
 from statistics import mode
+from data import data
 
-
+categories_to_search_for = ('Office','Walmart for Business','Electronics')
+categories_to_ignore = ('Essentials for Tax Professionals')
 
 
 use_cols = ['AWARD_VEHICLE',
@@ -26,22 +28,36 @@ use_cols = ['AWARD_VEHICLE',
             'MANUFACTURE_NAME', 'MANUFACTURE_PART_NUMBER', 'MFR_NAME_BY_VENDOR',
             'MFR_PART_NO_BY_VENDOR']
 
-dtypes = {'AWARD_VEHICLE': 'object',
-          'CONTRACT_NUMBER_AWARD_PIID': 'object',
-          'ORDER_NUMBER': 'object',
-          'VENDOR_NAME': 'object',
-          'FUNDING_AGENCY': 'object',
-          'QUANTITY_OF_ITEM_SOLD': 'int',
-          'AWARD_PRICE_PER_UNIT': 'float64',
-          'UNIT_OF_MEASURE': 'object',
-          'UNIT_OF_MEASURE_BY_VENDOR': 'object',
-          'TOTAL_PRICE': 'float64',
-          'DESCRIPTION_OF_DELIVERABLES': 'object',
-          'PROD_DESC_BY_VENDOR': 'object',
-          'MANUFACTURE_NAME': 'object',
-          'MANUFACTURE_PART_NUMBER': 'object',
-          'MFR_NAME_BY_VENDOR': 'object',
-          'MFR_PART_NO_BY_VENDOR': 'object'}
+
+
+
+def main(sample=200):
+    '''
+    main function 
+    
+    1. gets data saved in folder
+    2. calls api and maps predictions
+    3. applies rules that are common mistakes the api makes and corrects them
+    4. compares results to previously labeled data
+    5. appends predictions to previously predicted data
+    6. saves file
+    '''
+    train_df = get_training_data(sampleNum=sample)    
+    description_category_map = query_api_and_make_predictions(train_df)
+    train_df = map_and_clean_predictions(train_df,description_category_map)
+    train_df = rules.applyRulesToDF(train_df)
+    try:
+        taxonomy =  pd.read_csv('data/walmart_taxonomy.csv')
+        train_df = compare_to_labeled(taxonomy,train_df)
+    except:
+        print('please add taxonomy data to data folder to compare results')
+    try:    
+        previousPredictions = pd.read_csv('data/walmart_query_predictions.csv',encoding='latin1')
+        train_df =train_df.append(previousPredictions)
+    except:
+        print('please add predictions to /data/') 
+    print("saving data")
+    train_df.to_csv(r'data/walmart_query_predictions.csv',index=False)
 
 
 
@@ -131,13 +147,15 @@ def predict_sub_category(vendor_description_clean, key, category_id = '1229749')
     prediction = _get_prediction_from_category_path(category_paths)
     return prediction
 
+
+
 def loop_through_data_elements_and_append_categories(r_json):
     category_paths = []
     dict_elements = dict_generator(r_json)
     for i in dict_elements:
         for j in i:
             if 'categoryPath' in str(j):
-                if (i[-1].startswith(('Office','Walmart for Business','Electronics')) and not i[-1].endswith('Essentials for Tax Professionals')):
+                if (i[-1].startswith((categories_to_search_for)) and not i[-1].endswith((categories_to_ignore))):
                         category_paths.append(i[-1])
     return category_paths
 
@@ -202,7 +220,7 @@ def _get_prediction_from_category_path(category_paths):
           print("no prediction generated")
     return prediction
 
-def removePreviousPredictions(train_df):
+def remove_previous_predictions(train_df):
     '''
     remove predictions made from previous uses of the api
     '''
@@ -213,17 +231,15 @@ def removePreviousPredictions(train_df):
 
 
 
-def getTraining(sampleNum=5):
+
+def get_training_data(sampleNum=5):
     '''read in the training data and take a random sample of it that respects
     the sub_category balance.
     '''
-    train_df = pd.read_csv('data/os3_train.csv',
-                           dtype=dtypes,
-                           thousands=',',
-                           parse_dates=[7],
-                           encoding='latin1')
+    train_df = data().get_data_not_yet_predicted()
+    print(len(train_df.index),' rows still left to predict')
     try:
-        train_df = removePreviousPredictions(train_df)
+        train_df = remove_previous_predictions(train_df)
     except:
         print("add previous predictions to your data/ folder, to not resample data")
     lables, uniques = pd.factorize(train_df['SUB_CATEGORY'])
@@ -235,7 +251,7 @@ def getTraining(sampleNum=5):
 
 
  
-def queryAPI(train_df):
+def query_api_and_make_predictions(train_df):
     '''
     Query Walmart Search API using cleaned up vendor descriptions
     '''
@@ -274,19 +290,23 @@ def getTaxonomyDF(category='office'):
     df['category'] =category
     return df   
 
-def compareToLabeled(taxonomy,predictions):
-    taxonomy = taxonomy.drop_duplicates(subset=['name'])
-    merged = pd.merge(predictions,taxonomy,how='left',left_on='prediction_truncated',right_on='name')
+
+def compare_to_labeled(taxonomy,predictions):
+    '''
+    compares predictions made in recent query to previously labeled data
+    '''
+  
+    taxonomy = taxonomy.drop_duplicates(subset=['walmart_name'])
+    merged = pd.merge(predictions,taxonomy,how='left',left_on='prediction_truncated',right_on='walmart_name')
     merged['ifTrue'] = merged.apply(lambda x : 1 if x['SUB_CATEGORY'] == x['os3_taxonomy'] else 0, axis=1)
     df = pd.DataFrame(merged.groupby(['ifTrue'])['ifTrue'].count())
     print(df['ifTrue'].iloc[1] / (df['ifTrue'].iloc[1] + df['ifTrue'].iloc[0])," percent similar to labeled data")
     return merged
 
-
-
-if __name__ == '__main__':
-    train_df = getTraining(sampleNum=200)  
-    description_category_map = queryAPI(train_df)
+def map_and_clean_predictions(train_df,description_category_map):
+    '''
+    maps predictions onto training data and cleans them
+    '''
     train_df['prediction'] = train_df['vendor_description_clean'].map(description_category_map)
     train_df['prediction_truncated'] = train_df['prediction'].str.split("/").apply(lambda x: x[-1])
     train_df = train_df[['PROD_DESC_BY_VENDOR',
@@ -294,17 +314,13 @@ if __name__ == '__main__':
               'SUB_CATEGORY',
               'prediction',
               'prediction_truncated']]
-    train_df = rules.applyRulesToDF(train_df)
-    try:
-        taxonomy =  pd.read_csv('data/walmart_taxonomy.csv')
-        train_df = compareToLabeled(taxonomy,train_df)
-    except:
-        print('please add taxonomy data to data folder to compare results')
-    try:    
-        previousPredictions = pd.read_csv('data/walmart_query_predictions.csv',encoding='latin1')
-        train_df =train_df.append(previousPredictions)
-    except:
-        print('please add predictions to /data/') 
-    train_df.to_csv(r'data/walmart_query_predictions.csv',index=False)
+    return train_df
+
+
+
+if __name__ == '__main__':
+    main()
+    
+    
 
 
