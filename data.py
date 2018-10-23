@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-this class will help with data two class methods [ get and send ] 
+this class will help with data manaement and all import and export should be controlled here
+
+this should be broken into two class methods [ get and send ]  when we have database up and ready
+
+
 """
 
 import pandas as pd, numpy as np
