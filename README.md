@@ -8,7 +8,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 1. add a py file called config.py
 2. get a walmart api key and add it config.py
-
+3. 
 
 ### Prerequisites
 
